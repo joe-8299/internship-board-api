@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Internship Board – API Preview</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#5d6772;--bd:#dfe3e8;--ac:#2457d6;--er:#b42318;--ok:#067647}
+@media(prefers-color-scheme:dark){:root{--bg:#14171b;--card:#1d2127;--tx:#eceff3;--mu:#98a2ae;--bd:#2d333b;--ac:#6b93f5;--er:#f97066;--ok:#47cd89}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+main{max-width:960px;margin:0 auto;padding:24px 16px}h1{margin:0 0 4px}p.s{color:var(--mu);margin:0 0 20px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+input,select,button,textarea{font:inherit;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx)}
+button{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}button.d{color:var(--er)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}
+.card h3{margin:0}.m{color:var(--mu);font-size:13px}.tag{display:inline-block;font-size:12px;border:1px solid var(--bd);border-radius:99px;padding:1px 8px;margin-right:4px}
+.open{color:var(--ok)}.closed{color:var(--er)}.acts{margin-top:10px;display:flex;gap:6px}
+form{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:16px;display:none;gap:8px;grid-template-columns:1fr 1fr}
+form.show{display:grid}form .w{grid-column:1/-1}label{font-size:13px;color:var(--mu);display:block}
+#err{color:var(--er);white-space:pre-wrap;margin:0 0 12px}
+pre{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;overflow:auto;max-height:260px;font-size:12px}
+</style></head><body><main>
+<h1>Internship Board</h1><p class="s">Live preview of the CRUD API · <code>/api/internships</code></p>
+<div class="bar">
+ <input id="q" placeholder="Search title, company, location">
+ <select id="st"><option value="">Any status</option><option>open</option><option>closed</option><option>draft</option></select>
+ <select id="wm"><option value="">Any mode</option><option>remote</option><option>hybrid</option><option>onsite</option></select>
+ <button id="go">Search</button><button class="p" id="new">+ New internship</button>
+</div>
+<form id="f">
+ <div><label>Title</label><input name="title" required></div><div><label>Company</label><input name="company" required></div>
+ <div><label>Location</label><input name="location" required></div>
+ <div><label>Work mode</label><select name="work_mode"><option>remote</option><option>hybrid</option><option>onsite</option></select></div>
+ <div><label>Duration (weeks)</label><input name="duration_weeks" type="number" value="8"></div>
+ <div><label>Monthly stipend (blank = none)</label><input name="stipend_monthly" type="number"></div>
+ <div><label>Status</label><select name="status"><option>open</option><option>draft</option><option>closed</option></select></div>
+ <div><label>Apply URL</label><input name="apply_url" placeholder="https://"></div>
+ <div class="w"><label>Description</label><textarea name="description" rows="2" style="width:100%"></textarea></div>
+ <div class="w"><button class="p" type="submit" id="sv">Save</button> <button type="button" id="cx">Cancel</button></div>
+</form>
+<p id="err"></p><div class="grid" id="list"></div>
+<p class="m" id="meta"></p>
+<h3>Last API response</h3><pre id="raw">–</pre>
+</main>
+<script>
+const $=id=>document.getElementById(id);let editId=null;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(method,path,body){
+  const r=await fetch(path,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
+  const t=await r.text();const j=t?JSON.parse(t):null;
+  $('raw').textContent=method+' '+path+'\n→ '+r.status+' '+r.statusText+'\n\n'+(t?JSON.stringify(j,null,2):'(empty body)');
+  if(!r.ok){const e=j.error;$('err').textContent=e.code+': '+e.message+(e.details.length?'\n'+e.details.map(d=>'• '+d.field+' – '+d.message).join('\n'):'');throw e}
+  $('err').textContent='';return j;
+}
+async function load(){
+  const p=new URLSearchParams({limit:50});for(const[k,i]of[['q','q'],['status','st'],['work_mode','wm']])if($(i).value)p.set(k,$(i).value);
+  try{const j=await api('GET','/api/internships?'+p);
+  $('list').innerHTML=j.data.map(i=>`<div class="card"><h3>${esc(i.title)}</h3><div class="m">${esc(i.company)} · ${esc(i.location)}</div>
+   <p>${esc(i.description)}</p><span class="tag">${i.work_mode}</span><span class="tag ${i.status}">${i.status}</span>
+   <span class="tag">${i.duration_weeks} wks</span><span class="tag">${i.stipend_monthly==null?'unpaid':'₹'+i.stipend_monthly.toLocaleString('en-IN')+'/mo'}</span>
+   <div class="acts"><button data-e="${i.id}">Edit</button><button class="d" data-d="${i.id}">Delete</button></div></div>`).join('')||'<p class="m">No internships match.</p>';
+  $('meta').textContent=j.meta.total+' internship(s) found';}catch(e){}
+}
+$('go').onclick=load;$('q').onkeydown=e=>e.key==='Enter'&&load();
+$('new').onclick=()=>{editId=null;$('f').reset();$('f').classList.add('show')};
+$('cx').onclick=()=>$('f').classList.remove('show');
+$('list').onclick=async e=>{
+  const d=e.target.dataset;
+  if(d.d&&confirm('Delete internship '+d.d+'?')){try{await api('DELETE','/api/internships/'+d.d);load()}catch(_){}}
+  if(d.e){try{const j=await api('GET','/api/internships/'+d.e);editId=d.e;
+    for(const[k,v]of Object.entries(j.data))if($('f').elements[k])$('f').elements[k].value=v??'';$('f').classList.add('show')}catch(_){}}
+};
+$('f').onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData($('f')));
+  o.duration_weeks=o.duration_weeks===''?null:Number(o.duration_weeks);
+  o.stipend_monthly=o.stipend_monthly===''?null:Number(o.stipend_monthly);if(!o.apply_url)o.apply_url=null;
+  try{await api(editId?'PUT':'POST',editId?'/api/internships/'+editId:'/api/internships',o);$('f').classList.remove('show');load()}catch(_){}};
+load();
+</script></body></html>
